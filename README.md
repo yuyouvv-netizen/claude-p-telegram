@@ -2,8 +2,8 @@
 
 一个尽量小、尽量干净的 **Telegram ↔ Claude Code `claude -p`** 桥接模板。
 
-它不是 Claude 的替代实现，也不会复制某个私人前端。它只负责把允许的
-Telegram 文字消息串行交给官方 Claude Code CLI，再把文本结果送回原聊天。
+它把 Telegram 里的文字消息串行交给官方 Claude Code CLI，再把文本结果送回
+原聊天，让 Telegram 成为 `claude -p` 的日常聊天入口。
 
 ## 这个模板做什么
 
@@ -19,16 +19,9 @@ Telegram 文字消息串行交给官方 Claude Code CLI，再把文本结果送�
 - 心跳可选，默认关闭；静默词默认是 `SILENT`。
 - 提供 `/healthz`，便于 Zeabur 等平台检查进程。
 
-## 明确不包含
-
-- 任何人的 Bot Token、Claude 授权、Chat ID、域名或运行数据；
-- 私人提示词、人格文件、记忆库或 MCP 配置；
-- 语音、图片、小卡片、后台面板等定制功能；
-- 固定 session ID 或多聊天会话隔离。
-
-这个仓库定位为单人、单工作目录、单 Claude 会话的起点。如果多个聊天共用
-一个实例，它们会共同继续“该目录最近的会话”，请不要把互不信任的人放进
-同一份允许列表。
+这个版本最适合一个人使用一个机器人：每次消息都会继续同一工作目录里最近的
+Claude Code 会话，因此不需要手动填写或固定 session ID。如果几个人各自想要
+独立、连续的聊天，分别 Fork 并部署一份即可。
 
 ## 使用前准备
 
@@ -89,14 +82,28 @@ Claude Code 进程创建了更新的会话，下一条 Telegram 消息会继续�
 
 ## 在 Zeabur 部署
 
-1. Fork 本仓库。
-2. 在 Zeabur 新建项目并从该 Fork 部署。
-3. 配置必填私密变量，以及你现有 Claude Code 环境所需的认证变量。
-4. 给 `/data` 挂载持久卷；模板把去重状态写入
-   `/data/claude-p-telegram`，并让容器内 Claude Code 的 HOME 位于
-   `/data/home`，以便保留其会话数据。
-5. 确保 `CLAUDE_WORKDIR` 在重启后仍对应同一个 Claude Code 工作目录。
-6. 部署完成后访问 `/healthz`；返回 `{"ok":true,...}` 即表示桥接进程存活。
+GitHub 负责保存代码，Zeabur 负责让这段代码一直在云端运行，Telegram Bot 则是
+你每天实际打开的聊天入口。只完成 Fork 相当于复制了一份代码，机器人还不会
+上线；把 Fork 部署到 Zeabur 后，桥接程序才会持续接收 Telegram 消息并调用
+`claude -p`。
+
+1. 点击 GitHub 页面右上角的 **Fork**，把仓库复制到自己的 GitHub 账号。
+2. 在 Zeabur 新建项目，选择 **从 GitHub 部署**，再选中刚刚 Fork 的仓库。
+   Zeabur 会读取仓库里的 `Dockerfile`，自动安装 Node.js、Claude Code 和桥接
+   程序。
+3. 在服务的 **Variables / 环境变量** 页面填写 `.env.example` 中的必填项，
+   以及自己的 Claude Code 认证信息。环境变量就是“交给程序使用、但不写进
+   公开代码”的设置，真实 Token 只放在这里。
+4. 在服务中添加一个挂载到 `/data` 的 **Volume / 持久卷**。持久卷是服务重启
+   或重新部署后仍会保留的空间；它用来保存 Telegram 去重进度和 Claude Code
+   的会话数据，避免重启后重复处理旧消息或丢失最近会话。
+5. 重新部署服务，然后在 Telegram 中给机器人发送消息。默认的
+   `CLAUDE_WORKDIR=/workspace` 可以直接使用；只有接入自己已有的工作目录时才
+   需要修改它。
+
+`/healthz` 是给 Zeabur 检查程序是否仍在运行的小接口，不是聊天页面。打开后若
+看到 `{"ok":true,...}`，就表示桥接进程已经启动；真正的对话仍在 Telegram
+里进行。
 
 不要把任何真实 Token 写进 Fork、提交记录、Issue、截图或普通环境变量说明中。
 
